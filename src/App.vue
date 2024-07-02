@@ -125,8 +125,8 @@ export default {
       try {
         const response1 = await fetch('/cwe-navigation/graph_data.json')
         chartData.value = await response1.json()
-        chartNames.value = Object.keys(chartData.value)
-        selectedChart.value = chartNames.value[0]
+        chartNames.value = Object.keys(chartData.value).map((key) => `CWE-${key}`)
+        selectedChart.value = chartNames.value[2]
 
         const response2 = await fetch('/cwe-navigation/cwe_metadata.json')
         nodeMetadata.value = await response2.json()
