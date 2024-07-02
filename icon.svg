@@ -1,0 +1,20 @@
+<svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#f0f0f0"/>
+  
+  <line x1="128" y1="58" x2="85" y2="102" stroke="green" stroke-width="2"/>
+  <line x1="128" y1="58" x2="171" y2="102" stroke="green" stroke-width="2"/>
+  <line x1="85" y1="102" x2="64" y2="146" stroke="green" stroke-width="2"/>
+  <line x1="85" y1="102" x2="107" y2="146" stroke="green" stroke-width="2"/>
+  <line x1="171" y1="102" x2="149" y2="146" stroke="green" stroke-width="2"/>
+  <line x1="171" y1="102" x2="192" y2="146" stroke="green" stroke-width="2"/>
+  
+  <circle cx="128" cy="58" r="13" fill="lightgreen"/>
+  <circle cx="85" cy="102" r="13" fill="lightgreen"/>
+  <circle cx="171" cy="102" r="13" fill="lightgreen"/>
+  <circle cx="64" cy="146" r="13" fill="lightgreen"/>
+  <circle cx="107" cy="146" r="13" fill="lightgreen"/>
+  <circle cx="149" cy="146" r="13" fill="lightgreen"/>
+  <circle cx="192" cy="146" r="13" fill="lightgreen"/>
+  
+  <text x="128" y="216" font-family="Arial, sans-serif" font-size="34" font-weight="bold" text-anchor="middle" fill="navy">CWE</text>
+</svg>
