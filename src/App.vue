@@ -165,7 +165,9 @@ export default {
     // 更新图表
     const updateChart = () => {
       if (chart.value && selectedChart.value) {
-        const option = generateChartOption(chartData.value[selectedChart.value])
+        const option = generateChartOption(
+          chartData.value[selectedChart.value.replace(/^CWE-/, '')]
+        )
         chart.value.setOption(option)
       }
     }
