@@ -15,7 +15,7 @@
         </button>
       </div>
 
-      <h3>Choose a root CWE to view its tree:</h3>
+      <h3>Choose a graph visualization:</h3>
 
       <select v-model="selectedChart" @change="updateChart" class="w-full p-2 border rounded mb-4">
         <option v-for="chartName in chartNames" :key="chartName" :value="chartName">
@@ -125,7 +125,7 @@ export default {
       try {
         const response1 = await fetch('/cwe-navigation/graph_data.json')
         chartData.value = await response1.json()
-        chartNames.value = Object.keys(chartData.value).map((key) => `CWE-${key}`)
+        chartNames.value = Object.keys(chartData.value)
         selectedChart.value = chartNames.value[2]
 
         const response2 = await fetch('/cwe-navigation/cwe_metadata.json')
@@ -165,9 +165,7 @@ export default {
     // 更新图表
     const updateChart = () => {
       if (chart.value && selectedChart.value) {
-        const option = generateChartOption(
-          chartData.value[selectedChart.value.replace(/^CWE-/, '')]
-        )
+        const option = generateChartOption(chartData.value[selectedChart.value])
         chart.value.setOption(option)
       }
     }
