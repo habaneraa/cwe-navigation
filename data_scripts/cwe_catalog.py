@@ -10,9 +10,6 @@ import networkx as nx
 import xmltodict
 
 
-__all__ = ['CWECatalog', 'GraphChartData']
-
-
 class CWECatalog:
     data_cache_dir: Path = Path(__file__).parent / "cache"
     cwe_data_url = "https://cwe.mitre.org/data/xml/cwec_latest.xml.zip"
@@ -50,7 +47,6 @@ class CWECatalog:
         self.tree = self._build_tree_of(view_id='1000')
         # Each node has exactly one parent node, so we use a dict to store this relationship.
         self.parent_map: dict[str, str] = { e[1]:e[0] for e in self.tree.edges }
-        # graph of all CWE entries
         self.graph = self._build_graph(view_id='1000')
     
     def __getitem__(self, index: str | int) -> dict[str, Any]:
@@ -334,10 +330,10 @@ def main():
     cwe_catalog.show_cwe_basic_info()
     target_dir = Path(__file__).parent.parent / 'public'
     with open(target_dir / 'cwe_metadata.json', 'w') as json_file:
-        json.dump(cwe_catalog._cwe_info, json_file, indent=2)
+        json.dump(cwe_catalog._cwe_info, json_file, indent=0)
     graph_data = cwe_catalog.generate_graph_data()
     with open(target_dir / 'graph_data.json', 'w') as json_file:
-        json.dump(graph_data, json_file, indent=2)
+        json.dump(graph_data, json_file, indent=0)
 
 
 if __name__ == '__main__':
