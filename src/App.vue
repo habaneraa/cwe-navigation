@@ -829,7 +829,7 @@ onUnmounted(() => {
       ]"
     >
       <aside
-        class="control-rail relative z-[9] min-w-0 border-r border-line bg-[#f9fbfb] max-[800px]:fixed max-[800px]:inset-0 max-[800px]:z-[60] max-[800px]:w-full max-[800px]:border-0 max-[800px]:bg-white max-[800px]:transition-transform"
+        class="control-rail relative z-[9] min-h-0 min-w-0 border-r border-line bg-[#f9fbfb] max-[800px]:fixed max-[800px]:inset-0 max-[800px]:z-[60] max-[800px]:w-full max-[800px]:border-0 max-[800px]:bg-white max-[800px]:transition-transform"
         :class="mobileFiltersOpen ? 'max-[800px]:translate-x-0' : 'max-[800px]:-translate-x-full'"
         aria-label="Graph controls"
       >
