@@ -14,7 +14,6 @@ import {
   Focus,
   Github,
   Info,
-  LocateFixed,
   Maximize2,
   Minus,
   Network,
@@ -38,7 +37,7 @@ const abstractionSymbols = {
   Pillar: 'diamond',
   Class: 'roundRect',
   Base: 'circle',
-  Variant: 'triangle',
+  Variant: 'circle',
   Compound: 'rect',
 }
 
@@ -52,7 +51,6 @@ const dataInfo = ref({})
 const selectedView = ref('')
 const selectedNodeId = ref('')
 const trail = ref([])
-const focusedNodeId = ref('')
 const enabledAbstractions = ref(new Set(abstractionOrder))
 const enabledRelations = ref(new Set())
 const searchScope = ref('all')
@@ -73,12 +71,6 @@ let toastTimer
 const viewEntries = computed(() => Object.entries(graphs.value))
 const currentGraph = computed(() => graphs.value[selectedView.value] || { nodes: [], links: [] })
 const selectedNode = computed(() => metadata.value[selectedNodeId.value])
-const viewTitle = computed(() => {
-  const match = selectedView.value.match(/^Tree of (CWE-\d+): (.+)$/)
-  if (match) return { id: match[1], name: match[2] }
-  if (selectedView.value.startsWith('All Weaknesses')) return { id: 'CWE-1000', name: 'All Weaknesses' }
-  return { id: 'CWE-1000', name: selectedView.value || 'Research Concepts' }
-})
 
 const nodesInCurrentView = computed(() => new Set(currentGraph.value.nodes.map((node) => node.name)))
 const abstractionCounts = computed(() => {
@@ -96,7 +88,9 @@ const relationTypes = computed(() => {
   return Object.entries(counts).sort((a, b) => b[1] - a[1])
 })
 const filteredNodes = computed(() =>
-  currentGraph.value.nodes.filter((node) => enabledAbstractions.value.has(node.category)),
+  currentGraph.value.nodes.filter(
+    (node) => node.category === 'Pillar' || enabledAbstractions.value.has(node.category),
+  ),
 )
 const filteredNodeIds = computed(() => new Set(filteredNodes.value.map((node) => node.name)))
 const filteredLinks = computed(() =>
@@ -195,6 +189,13 @@ function shortViewName(name) {
   return name.replace(' (could be very laggy)', '')
 }
 
+function viewId(name) {
+  const match = name.match(/^Tree of (CWE-\d+):/)
+  if (match) return match[1]
+  if (name.startsWith('All Weaknesses')) return 'CWE-1000'
+  return name.match(/CWE-\d+/)?.[0] || 'CWE-1000'
+}
+
 function shortName(name, length = 34) {
   if (!name) return 'Details unavailable'
   return name.length > length ? `${name.slice(0, length - 1)}…` : name
@@ -231,8 +232,8 @@ function escapeRegExp(value) {
 
 function graphOption() {
   const linked = new Set()
-  if (selectedNodeId.value || focusedNodeId.value) {
-    const active = focusedNodeId.value || selectedNodeId.value
+  if (selectedNodeId.value) {
+    const active = selectedNodeId.value
     linked.add(active)
     filteredLinks.value.forEach((link) => {
       if (link.source === active) linked.add(link.target)
@@ -267,6 +268,7 @@ function graphOption() {
         type: 'graph',
         layout: 'force',
         roam: true,
+        roamTrigger: 'global',
         draggable: true,
         zoom: zoomLevel.value,
         left: 54,
@@ -279,12 +281,14 @@ function graphOption() {
         })),
         data: filteredNodes.value.map((node) => {
           const info = metadata.value[node.name] || {}
-          const isActive = node.name === selectedNodeId.value || node.name === focusedNodeId.value
+          const isActive = node.name === selectedNodeId.value
           const visible = !dimUnrelated || linked.has(node.name)
           return {
             ...node,
             symbol: abstractionSymbols[node.category] || 'circle',
-            symbolSize: Math.max(14, Math.min(28, 13 + (degree[node.name] || 0) * 1.25)),
+            symbolSize:
+              Math.max(14, Math.min(28, 13 + (degree[node.name] || 0) * 1.25)) -
+              (node.category === 'Variant' ? 2 : 0),
             itemStyle: {
               color: abstractionColors[node.category] || '#71838c',
               opacity: visible ? 1 : 0.17,
@@ -301,7 +305,7 @@ function graphOption() {
           }
         }),
         links: filteredLinks.value.map((link) => {
-          const active = focusedNodeId.value || selectedNodeId.value
+          const active = selectedNodeId.value
           const connected = active && (link.source === active || link.target === active)
           return {
             ...link,
@@ -316,7 +320,8 @@ function graphOption() {
         }),
         label: {
           show: true,
-          position: 'right',
+          silent: true,
+          position: 'bottom',
           distance: 5,
           color: '#334852',
           fontFamily: 'Inter, system-ui, sans-serif',
@@ -333,9 +338,20 @@ function graphOption() {
         },
         emphasis: {
           focus: 'adjacency',
-          scale: 1.35,
+          scale: false,
+          itemStyle: {
+            borderColor: '#0b4f4a',
+            borderWidth: 4,
+            shadowBlur: 14,
+            shadowColor: 'rgba(15,118,110,.35)',
+          },
           label: { show: true, fontWeight: 700 },
           lineStyle: { opacity: 1, width: 2.2 },
+        },
+        blur: {
+          itemStyle: { opacity: 0.17 },
+          label: { opacity: 0.15 },
+          lineStyle: { opacity: 0.08 },
         },
       },
     ],
@@ -374,7 +390,6 @@ async function loadData() {
     initChart()
     const linkedNode = params.get('node')
     if (linkedNode && metadata.value[linkedNode]) selectNode(linkedNode, { addToTrail: false })
-    if (params.get('focus') === '1' && linkedNode) focusedNodeId.value = linkedNode
     showGuide.value = !window.localStorage.getItem('cwe-guide-seen')
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : 'The graph is temporarily unavailable.'
@@ -389,9 +404,6 @@ function initChart() {
   chart.setOption(graphOption(), true)
   chart.on('click', (params) => {
     if (params.dataType === 'node') selectNode(params.data.name)
-  })
-  chart.on('dblclick', (params) => {
-    if (params.dataType === 'node') focusNode(params.data.name)
   })
   chart.on('graphroam', () => {
     const option = chart?.getOption()
@@ -408,10 +420,18 @@ function updateGraph() {
   chart.setOption(graphOption(), { notMerge: true, lazyUpdate: true })
 }
 
+function updateGraphHighlight() {
+  if (!chart) return
+  chart.dispatchAction({ type: 'downplay', seriesId: 'cwe-graph' })
+  const dataIndex = filteredNodes.value.findIndex((node) => node.name === selectedNodeId.value)
+  if (dataIndex >= 0) {
+    chart.dispatchAction({ type: 'highlight', seriesId: 'cwe-graph', dataIndex })
+  }
+}
+
 function switchView(name, nodeToKeep = '') {
   if (name === selectedView.value) return
   selectedView.value = name
-  focusedNodeId.value = ''
   zoomLevel.value = 1
   resetAbstractionFilters()
   resetRelationFilters()
@@ -458,13 +478,12 @@ function selectNode(nodeId, options = {}) {
     }
   }
   selectedNodeId.value = nodeId
-  focusedNodeId.value = options.keepFocus ? focusedNodeId.value : ''
   searchOpen.value = false
   mobileDetailExpanded.value = false
   syncUrl()
   nextTick(() => {
-    updateGraph()
     resizeChart()
+    updateGraphHighlight()
   })
 }
 
@@ -474,26 +493,14 @@ function selectSearchResult(result) {
   selectNode(result.id)
 }
 
-function focusNode(nodeId = selectedNodeId.value) {
-  if (!nodeId) return
-  selectedNodeId.value = nodeId
-  focusedNodeId.value = focusedNodeId.value === nodeId ? '' : nodeId
-  syncUrl()
-  updateGraph()
-}
-
-function showAllNodes() {
-  focusedNodeId.value = ''
-  syncUrl()
-  updateGraph()
-}
-
 function clearSelection() {
+  if (!selectedNodeId.value) return
   selectedNodeId.value = ''
-  focusedNodeId.value = ''
   syncUrl()
-  updateGraph()
-  resizeChart()
+  nextTick(() => {
+    resizeChart()
+    updateGraphHighlight()
+  })
 }
 
 function clearSearch() {
@@ -513,6 +520,8 @@ function navigateTrail(index) {
 }
 
 function toggleAbstraction(name) {
+  if (name === 'Pillar') return
+
   const next = new Set(enabledAbstractions.value)
   next.has(name) ? next.delete(name) : next.add(name)
   enabledAbstractions.value = next
@@ -520,7 +529,15 @@ function toggleAbstraction(name) {
 
 function toggleRelation(name) {
   const next = new Set(enabledRelations.value)
-  next.has(name) ? next.delete(name) : next.add(name)
+  if (next.has(name)) {
+    next.delete(name)
+    if (!next.size) {
+      modal.value = 'relations'
+      return
+    }
+  } else {
+    next.add(name)
+  }
   enabledRelations.value = next
 }
 
@@ -530,12 +547,20 @@ function resetAbstractionFilters() {
 
 function resetRelationFilters() {
   const graph = graphs.value[selectedView.value]
-  enabledRelations.value = new Set(graph ? graph.links.map((link) => link.value) : [])
+  enabledRelations.value = new Set(
+    graph?.links.some((link) => link.value === 'ParentOf') ? ['ParentOf'] : [],
+  )
 }
 
 function clearFilters() {
   resetAbstractionFilters()
-  resetRelationFilters()
+  const graph = graphs.value[selectedView.value]
+  enabledRelations.value = new Set(graph ? graph.links.map((link) => link.value) : [])
+}
+
+function confirmRelationFilterChange() {
+  enabledRelations.value = new Set()
+  modal.value = ''
 }
 
 function zoomBy(amount) {
@@ -576,8 +601,6 @@ function syncUrl() {
   if (selectedView.value) url.searchParams.set('view', selectedView.value)
   if (selectedNodeId.value) url.searchParams.set('node', selectedNodeId.value)
   else url.searchParams.delete('node')
-  if (focusedNodeId.value) url.searchParams.set('focus', '1')
-  else url.searchParams.delete('focus')
   window.history.replaceState({}, '', url)
 }
 
@@ -631,12 +654,15 @@ function onSearchKeydown(event) {
   }
 }
 
+function onSearchFocusout(event) {
+  if (!event.currentTarget.contains(event.relatedTarget)) searchOpen.value = false
+}
+
 function onGlobalKeydown(event) {
   if (event.key !== 'Escape') return
   if (modal.value) modal.value = ''
   else if (mobileFiltersOpen.value) mobileFiltersOpen.value = false
   else if (searchOpen.value) searchOpen.value = false
-  else if (focusedNodeId.value) showAllNodes()
   else if (selectedNodeId.value) clearSelection()
 }
 
@@ -679,7 +705,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <div class="search-area relative min-w-0 max-[800px]:col-span-full max-[800px]:row-start-2">
+      <div class="search-area relative min-w-0 max-[800px]:col-span-full max-[800px]:row-start-2" @focusout="onSearchFocusout">
         <div class="search-shell flex h-11 items-center rounded-[11px] border bg-white text-muted shadow-[0_4px_18px_rgba(34,55,63,.07)] transition focus-within:border-[#58a29c] focus-within:shadow-[0_0_0_3px_rgba(15,118,110,.09),0_8px_24px_rgba(34,55,63,.1)]" :class="searchOpen ? 'border-[#58a29c] shadow-[0_0_0_3px_rgba(15,118,110,.09),0_8px_24px_rgba(34,55,63,.1)]' : 'border-line-strong'">
           <select v-model="searchScope" class="h-full w-28 cursor-pointer border-0 bg-transparent px-3 text-[11.5px] text-ink-soft outline-none max-[480px]:w-24 max-[480px]:px-2 max-[480px]:text-[10.5px]" aria-label="Search scope">
             <option value="all">All fields</option>
@@ -753,7 +779,7 @@ onUnmounted(() => {
 
       <nav class="header-actions flex items-center justify-end gap-0.5 max-[800px]:col-start-2 max-[800px]:row-start-1" aria-label="Helpful links">
         <button class="header-action inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-transparent bg-transparent px-2 text-[11px] whitespace-nowrap text-ink-soft hover:border-line hover:bg-soft hover:text-ink max-[1180px]:w-9 max-[1180px]:justify-center max-[1180px]:px-0 max-[800px]:hidden" @click="modal = 'data'"><Info :size="17" /><span class="max-[1180px]:hidden">About this data</span></button>
-        <a class="header-action inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-transparent bg-transparent px-2 text-[11px] whitespace-nowrap text-ink-soft no-underline hover:border-line hover:bg-soft hover:text-ink max-[1180px]:hidden" href="https://github.com/habaneraa/cwe-navigation" target="_blank" rel="noreferrer"><Github :size="17" /><span>GitHub</span></a>
+        <a class="header-action grid size-9 place-items-center rounded-lg border border-transparent bg-transparent p-0 text-ink-soft no-underline hover:border-line hover:bg-soft hover:text-ink" href="https://github.com/habaneraa/cwe-navigation" target="_blank" rel="noreferrer" aria-label="GitHub"><Github :size="19" /></a>
         <button class="header-action grid size-9 place-items-center rounded-lg border border-transparent bg-transparent p-0 text-ink-soft hover:border-line hover:bg-soft hover:text-ink" aria-label="Help" @click="modal = 'help'"><CircleHelp :size="19" /></button>
       </nav>
     </header>
@@ -787,12 +813,13 @@ onUnmounted(() => {
           <section class="control-section border-b border-line pt-1 pb-[18px] max-[800px]:pt-2.5">
             <p class="section-label m-0 text-[9.5px] font-extrabold tracking-[.13em] text-muted uppercase">Graph view</p>
             <div class="select-wrap relative mt-2">
-              <select class="h-[39px] w-full cursor-pointer appearance-none overflow-hidden rounded-lg border border-line-strong bg-white pr-8 pl-3 text-[11.5px] text-ink text-ellipsis outline-none" :value="selectedView" aria-label="Graph view" @change="requestViewSwitch($event.target.value)">
+              <select class="graph-view-select h-[47px] w-full cursor-pointer appearance-none overflow-hidden rounded-[10px] border border-line-strong bg-white pr-10 pl-4 text-[12.5px] font-semibold tracking-[.01em] text-transparent text-ellipsis shadow-[0_2px_8px_rgba(24,46,55,.04)] outline-none transition-[border-color,box-shadow] hover:border-[#9fc4c1] focus:border-[#58a29c] focus:shadow-[0_0_0_3px_rgba(15,118,110,.09)]" :value="selectedView" aria-label="Graph view" @change="requestViewSwitch($event.target.value)">
                 <option v-for="([name, graph]) in viewEntries" :key="name" :value="name">
                   {{ shortViewName(name) }} · {{ graph.nodes.length }}
                 </option>
               </select>
-              <ChevronDown :size="16" class="pointer-events-none absolute top-3 right-2.5 text-muted" />
+              <span class="pointer-events-none absolute top-0 bottom-0 left-4 flex items-center text-[12.5px] font-semibold tracking-[.01em] text-ink" aria-hidden="true">{{ viewId(selectedView) }}</span>
+              <ChevronDown :size="18" class="pointer-events-none absolute top-[14px] right-3 text-muted" />
             </div>
             <p class="section-note mt-2 mx-0.5 mb-0 text-[10.5px] text-muted">{{ currentGraph.nodes.length }} nodes · {{ currentGraph.links.length }} relationships</p>
           </section>
@@ -806,14 +833,16 @@ onUnmounted(() => {
               v-for="name in abstractionOrder"
               :key="name"
               class="filter-row grid min-h-[34px] w-full cursor-pointer grid-cols-[20px_minmax(0,1fr)_auto_18px] items-center gap-[7px] rounded-[7px] border-0 bg-transparent px-1 py-[3px] text-left text-[11.5px] text-ink-soft hover:bg-[#eef4f5] max-[800px]:min-h-11"
-              :class="!enabledAbstractions.has(name) ? 'opacity-40' : ''"
+              :class="!enabledAbstractions.has(name) ? 'opacity-40' : name === 'Pillar' ? 'cursor-default' : ''"
               :aria-pressed="enabledAbstractions.has(name)"
+              :aria-disabled="name === 'Pillar'"
+              :title="name === 'Pillar' ? 'Pillar nodes are always visible' : undefined"
               @click="toggleAbstraction(name)"
             >
               <span class="node-swatch" :data-kind="name" :style="{ '--swatch': abstractionColors[name] }"></span>
               <span>{{ name }}</span>
               <span class="filter-count font-mono text-[10px] text-muted">{{ abstractionCounts[name] || 0 }}</span>
-              <span class="filter-check grid size-4 place-items-center rounded border text-white" :class="enabledAbstractions.has(name) ? 'border-accent bg-accent' : 'border-line-strong bg-white'"><Check v-if="enabledAbstractions.has(name)" :size="13" /></span>
+              <span v-if="name !== 'Pillar'" class="filter-check grid size-4 place-items-center rounded border text-white" :class="enabledAbstractions.has(name) ? 'border-accent bg-accent' : 'border-line-strong bg-white'"><Check v-if="enabledAbstractions.has(name)" :size="13" /></span>
             </button>
           </section>
 
@@ -846,7 +875,7 @@ onUnmounted(() => {
 
       <section id="graph-stage" class="graph-stage relative min-w-0 overflow-hidden bg-canvas bg-[radial-gradient(#cbd8dc_1px,transparent_1px)] [background-size:22px_22px] max-[800px]:h-full max-[800px]:w-full" aria-label="CWE relationship graph" tabindex="-1">
         <div class="graph-topbar pointer-events-none absolute top-[17px] right-[22px] left-[22px] z-[4] flex items-center justify-between max-[800px]:top-[13px] max-[800px]:right-[13px] max-[800px]:left-[13px]">
-          <nav class="breadcrumb pointer-events-auto flex max-w-[70%] items-center overflow-hidden font-mono text-[10.5px] whitespace-nowrap text-muted max-[800px]:max-w-[calc(100%-94px)]" aria-label="Exploration path">
+          <nav class="breadcrumb pointer-events-auto flex max-w-[70%] items-center overflow-hidden rounded-lg border border-line/80 bg-white/92 px-2 py-1 font-mono text-[10.5px] whitespace-nowrap text-muted shadow-[0_4px_14px_rgba(24,46,55,.08)] backdrop-blur-[8px] max-[800px]:max-w-[calc(100%-94px)]" aria-label="Exploration path">
             <button class="cursor-pointer border-0 bg-transparent p-[3px] text-muted hover:text-accent hover:underline" @click="clearSelection">All nodes</button>
             <template v-for="(item, index) in trail" :key="`${item.id}-${index}`">
               <ChevronRight :size="13" />
@@ -857,13 +886,7 @@ onUnmounted(() => {
               <span class="text-ink-soft">{{ selectedNodeId }}</span>
             </template>
           </nav>
-          <button v-if="focusedNodeId" class="show-all pointer-events-auto inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-[#b8d4d1] bg-white/90 px-2.5 text-[10.5px] text-accent-dark shadow-[0_4px_12px_rgba(22,43,51,.06)]" @click="showAllNodes"><LocateFixed :size="15" /> Show all nodes</button>
           <button class="mobile-filter-button pointer-events-auto hidden min-h-9 items-center gap-1.5 rounded-lg border border-[#b8d4d1] bg-white/90 px-2.5 text-[10.5px] text-accent-dark shadow-[0_4px_12px_rgba(22,43,51,.06)] max-[800px]:inline-flex" @click="mobileFiltersOpen = true"><SlidersHorizontal :size="17" /> Filters</button>
-        </div>
-
-        <div class="graph-title pointer-events-none absolute top-12 left-6 z-[3] max-w-[42%] max-[800px]:top-[52px] max-[800px]:left-4 max-[800px]:max-w-[70%]">
-          <span class="font-mono text-[10px] font-bold text-accent">{{ viewTitle.id }}</span>
-          <h1 class="mt-1 mb-0 text-[17px] font-semibold tracking-[-.02em] max-[800px]:text-[15px]">{{ viewTitle.name }}</h1>
         </div>
 
         <div ref="chartEl" class="chart absolute inset-0 size-full"></div>
@@ -964,40 +987,50 @@ onUnmounted(() => {
     <div v-if="mobileFiltersOpen" class="drawer-scrim fixed inset-0 z-[55] hidden bg-[rgba(15,35,42,.3)] max-[800px]:block" @click="mobileFiltersOpen = false"></div>
 
     <div v-if="modal" class="modal-backdrop fixed inset-0 z-80 grid place-items-center bg-[rgba(11,30,37,.35)] p-5 backdrop-blur-[3px]" role="presentation" @click.self="modal = ''">
-      <section class="modal relative w-full max-w-[430px] rounded-[14px] border border-line bg-white p-7 shadow-[0_22px_70px_rgba(15,35,43,.24)]" role="dialog" aria-modal="true" :aria-labelledby="`${modal}-title`">
+      <section class="modal relative w-full rounded-[14px] border border-line bg-white shadow-[0_22px_70px_rgba(15,35,43,.24)]" :class="modal === 'help' ? 'max-w-[560px] p-8' : 'max-w-[430px] p-7'" role="dialog" aria-modal="true" :aria-labelledby="`${modal}-title`">
         <button class="modal-close absolute top-[13px] right-[13px] grid size-[34px] place-items-center rounded-lg border-0 bg-transparent text-muted hover:bg-soft" aria-label="Close dialog" @click="modal = ''"><X :size="20" /></button>
         <template v-if="modal === 'data'">
           <span class="modal-icon mb-4 grid size-11 place-items-center rounded-xl bg-accent-soft text-accent"><Info :size="22" /></span>
-          <p class="section-label m-0 text-[9.5px] font-extrabold tracking-[.13em] text-muted uppercase">Data source</p>
-          <h2 id="data-title" class="mt-1.5 mb-2.5 text-[21px] tracking-[-.025em]">About this data</h2>
-          <p class="m-0 text-xs leading-[1.65] text-ink-soft">This site visualizes the CWE Research Concepts view (View ID 1000), generated from the official MITRE CWE catalog.</p>
-          <dl class="my-5 border-t border-line"><div class="flex justify-between border-b border-line py-2.5 text-[11px]"><dt class="text-muted">Catalog version</dt><dd class="m-0 font-semibold">CWE {{ dataInfo.cwe_version }}</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[11px]"><dt class="text-muted">Catalog updated</dt><dd class="m-0 font-semibold">{{ dataInfo.updated_at }}</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[11px]"><dt class="text-muted">Research view</dt><dd class="m-0 font-semibold">View {{ dataInfo.view_id }}</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[11px]"><dt class="text-muted">Weakness metadata</dt><dd class="m-0 font-semibold">{{ searchableEntries.length.toLocaleString() }} entries</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[11px]"><dt class="text-muted">Graph views</dt><dd class="m-0 font-semibold">{{ viewEntries.length }} views</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[11px]"><dt class="text-muted">Source</dt><dd class="m-0 font-semibold">MITRE CWE Catalog</dd></div></dl>
-          <a class="modal-link inline-flex items-center gap-2 text-[11px] font-bold text-accent no-underline" href="https://cwe.mitre.org/data/definitions/1000.html" target="_blank" rel="noreferrer">View Research Concepts on MITRE <ExternalLink :size="16" /></a>
+          <p class="section-label m-0 text-[11px] font-extrabold tracking-[.13em] text-muted uppercase">Data source</p>
+          <h2 id="data-title" class="mt-1.5 mb-2.5 text-[24px] tracking-[-.025em]">About this data</h2>
+          <p class="m-0 text-sm leading-[1.65] text-ink-soft">This site visualizes the CWE Research Concepts view (View ID 1000), generated from the official MITRE CWE catalog.</p>
+          <dl class="my-5 border-t border-line"><div class="flex justify-between border-b border-line py-2.5 text-[13px]"><dt class="text-muted">Catalog version</dt><dd class="m-0 font-semibold">CWE {{ dataInfo.cwe_version }}</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[13px]"><dt class="text-muted">Catalog updated</dt><dd class="m-0 font-semibold">{{ dataInfo.updated_at }}</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[13px]"><dt class="text-muted">Research view</dt><dd class="m-0 font-semibold">View {{ dataInfo.view_id }}</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[13px]"><dt class="text-muted">Weakness metadata</dt><dd class="m-0 font-semibold">{{ searchableEntries.length.toLocaleString() }} entries</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[13px]"><dt class="text-muted">Graph views</dt><dd class="m-0 font-semibold">{{ viewEntries.length }} views</dd></div><div class="flex justify-between border-b border-line py-2.5 text-[13px]"><dt class="text-muted">Source</dt><dd class="m-0 font-semibold">MITRE CWE Catalog</dd></div></dl>
+          <a class="modal-link inline-flex items-center gap-2 text-[13px] font-bold text-accent no-underline" href="https://cwe.mitre.org/data/definitions/1000.html" target="_blank" rel="noreferrer">View Research Concepts on MITRE <ExternalLink :size="16" /></a>
         </template>
         <template v-else-if="modal === 'help'">
           <span class="modal-icon mb-4 grid size-11 place-items-center rounded-xl bg-accent-soft text-accent"><CircleHelp :size="22" /></span>
-          <p class="section-label m-0 text-[9.5px] font-extrabold tracking-[.13em] text-muted uppercase">Quick guide</p>
-          <h2 id="help-title" class="mt-1.5 mb-2.5 text-[21px] tracking-[-.025em]">Navigate the graph</h2>
-          <div class="shortcut-list mt-[18px] grid grid-cols-2 gap-px overflow-hidden rounded-[9px] border border-line bg-line max-[480px]:grid-cols-1"><div class="grid gap-1 bg-white p-3"><strong class="text-[10.5px]">Select</strong><span class="text-[10px] text-muted">Click or tap a node</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[10.5px]">Focus</strong><span class="text-[10px] text-muted">Double-click a node</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[10.5px]">Move</strong><span class="text-[10px] text-muted">Drag the canvas</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[10.5px]">Zoom</strong><span class="text-[10px] text-muted">Scroll, pinch, or use the controls</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[10.5px]">Close</strong><span class="text-[10px] text-muted">Press Esc</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[10.5px]">Search</strong><span class="text-[10px] text-muted">Use ↑ ↓ and Enter</span></div></div>
+          <p class="section-label m-0 text-[11px] font-extrabold tracking-[.13em] text-muted uppercase">Quick guide</p>
+          <h2 id="help-title" class="mt-1.5 mb-2.5 text-[24px] tracking-[-.025em]">Navigate the graph</h2>
+          <div class="shortcut-list mt-[18px] grid grid-cols-2 gap-px overflow-hidden rounded-[9px] border border-line bg-line max-[480px]:grid-cols-1"><div class="grid gap-1 bg-white p-3"><strong class="text-[13px]">Select</strong><span class="text-xs text-muted">Click or tap a node</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[13px]">Move</strong><span class="text-xs text-muted">Drag the canvas</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[13px]">Zoom</strong><span class="text-xs text-muted">Scroll, pinch, or use the controls</span></div><div class="grid gap-1 bg-white p-3"><strong class="text-[13px]">Close</strong><span class="text-xs text-muted">Press Esc</span></div></div>
+        </template>
+        <template v-else-if="modal === 'relations'">
+          <span class="modal-icon mb-4 grid size-11 place-items-center rounded-xl bg-[#fff3df] text-[#b66d1f]"><TriangleAlert :size="22" /></span>
+          <p class="section-label m-0 text-[11px] font-extrabold tracking-[.13em] text-muted uppercase">Relationship filters</p>
+          <h2 id="relations-title" class="mt-1.5 mb-2.5 text-[24px] tracking-[-.025em]">Remove all relationship types?</h2>
+          <p class="m-0 text-sm leading-[1.65] text-ink-soft">The nodes currently on the canvas will lose all edges. Do you want to continue?</p>
+          <div class="mt-5 flex justify-end gap-2">
+            <button class="min-h-9 rounded-lg border border-line-strong bg-white px-3 text-[13px] text-ink-soft" @click="modal = ''">Cancel</button>
+            <button class="min-h-9 rounded-lg border border-accent bg-accent px-3 text-[13px] font-semibold text-white" @click="confirmRelationFilterChange">Confirm</button>
+          </div>
         </template>
         <template v-else-if="modal === 'all'">
           <span class="modal-icon mb-4 grid size-11 place-items-center rounded-xl bg-[#fff3df] text-[#b66d1f]"><TriangleAlert :size="22" /></span>
-          <p class="section-label m-0 text-[9.5px] font-extrabold tracking-[.13em] text-muted uppercase">Large graph view</p>
-          <h2 id="all-title" class="mt-1.5 mb-2.5 text-[21px] tracking-[-.025em]">Load all weaknesses?</h2>
-          <p class="m-0 text-xs leading-[1.65] text-ink-soft">This view loads {{ graphs[pendingView].nodes.length.toLocaleString() }} nodes and {{ graphs[pendingView].links.length.toLocaleString() }} relationships. It may make your browser slow or temporarily unresponsive.</p>
+          <p class="section-label m-0 text-[11px] font-extrabold tracking-[.13em] text-muted uppercase">Large graph view</p>
+          <h2 id="all-title" class="mt-1.5 mb-2.5 text-[24px] tracking-[-.025em]">Load all weaknesses?</h2>
+          <p class="m-0 text-sm leading-[1.65] text-ink-soft">This view loads {{ graphs[pendingView].nodes.length.toLocaleString() }} nodes and {{ graphs[pendingView].links.length.toLocaleString() }} relationships. It may make your browser slow or temporarily unresponsive.</p>
           <div class="mt-5 flex justify-end gap-2">
-            <button class="min-h-9 rounded-lg border border-line-strong bg-white px-3 text-[11px] text-ink-soft" @click="modal = ''">Cancel</button>
-            <button class="min-h-9 rounded-lg border border-accent bg-accent px-3 text-[11px] font-semibold text-white" @click="confirmViewSwitch">Load graph</button>
+            <button class="min-h-9 rounded-lg border border-line-strong bg-white px-3 text-[13px] text-ink-soft" @click="modal = ''">Cancel</button>
+            <button class="min-h-9 rounded-lg border border-accent bg-accent px-3 text-[13px] font-semibold text-white" @click="confirmViewSwitch">Load graph</button>
           </div>
         </template>
         <template v-else>
           <span class="modal-icon mb-4 grid size-11 place-items-center rounded-xl bg-accent-soft text-accent"><Network :size="22" /></span>
-          <p class="section-label m-0 text-[9.5px] font-extrabold tracking-[.13em] text-muted uppercase">Switch graph view</p>
-          <h2 id="view-title" class="mt-1.5 mb-2.5 text-[21px] tracking-[-.025em]">Current node is not in this view</h2>
-          <p class="m-0 text-xs leading-[1.65] text-ink-soft">{{ selectedNodeId }} will be closed when you switch to {{ shortViewName(pendingView) }}. Your filters and exploration path remain available.</p>
+          <p class="section-label m-0 text-[11px] font-extrabold tracking-[.13em] text-muted uppercase">Switch graph view</p>
+          <h2 id="view-title" class="mt-1.5 mb-2.5 text-[24px] tracking-[-.025em]">Current node is not in this view</h2>
+          <p class="m-0 text-sm leading-[1.65] text-ink-soft">{{ selectedNodeId }} will be closed when you switch to {{ shortViewName(pendingView) }}. Your filters and exploration path remain available.</p>
           <div class="mt-5 flex justify-end gap-2">
-            <button class="min-h-9 rounded-lg border border-line-strong bg-white px-3 text-[11px] text-ink-soft" @click="modal = ''">Cancel</button>
-            <button class="min-h-9 rounded-lg border border-accent bg-accent px-3 text-[11px] font-semibold text-white" @click="confirmViewSwitch">Switch view</button>
+            <button class="min-h-9 rounded-lg border border-line-strong bg-white px-3 text-[13px] text-ink-soft" @click="modal = ''">Cancel</button>
+            <button class="min-h-9 rounded-lg border border-accent bg-accent px-3 text-[13px] font-semibold text-white" @click="confirmViewSwitch">Switch view</button>
           </div>
         </template>
       </section>

@@ -27,6 +27,7 @@ html, body, #app { width: 100%; height: 100%; margin: 0; }
 body { overflow: hidden; background: var(--color-canvas); -webkit-font-smoothing: antialiased; }
 button, input, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
+.graph-view-select option { color: var(--color-ink); }
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid #248e85;
   outline-offset: 2px;
@@ -44,16 +45,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--swatch) 70%, #000);
 }
 .node-swatch[data-kind="Pillar"] { border-radius: 2px; transform: rotate(45deg); }
-.node-swatch[data-kind="Class"] { width: 15px; border-radius: 4px; }
+.node-swatch[data-kind="Class"] { border-radius: 4px; }
 .node-swatch[data-kind="Base"] { border-radius: 50%; }
 .node-swatch[data-kind="Variant"] {
-  width: 0;
-  height: 0;
-  border: 7px solid transparent;
-  border-bottom: 12px solid var(--swatch);
-  background: none;
-  box-shadow: none;
-  transform: translateY(-4px);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
 }
 
 .line-swatch { position: relative; display: block; width: 17px; height: 8px; border-top: 1.5px solid #789099; }

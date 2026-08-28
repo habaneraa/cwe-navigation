@@ -114,6 +114,9 @@ describe('fixture golden baseline', () => {
       symbol: ['none', 'arrow'],
       symbolSize: 5,
     })
+
+    const tree = graphs['Tree of CWE-700: Pillar P']
+    expect(tree.links.some((link) => link.value === 'CanPrecede')).toBe(true)
   })
 
   it('metadata keeps xml document order across weaknesses/categories/views', () => {

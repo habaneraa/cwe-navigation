@@ -372,7 +372,7 @@ export class GraphChartData extends CweCatalog {
           visibleNodes.push(cweId)
         }
       }
-      const exportedGraph = this.exportData(visibleNodes, this.tree.edges(), rootNode)
+      const exportedGraph = this.exportData(visibleNodes, this.graph.edges(), rootNode)
       const graphName = `Tree of ${rootNode}: ${this.get(rootNode).name}`
       allGraphs[graphName] = exportedGraph
     }
