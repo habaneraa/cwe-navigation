@@ -76,6 +76,14 @@ async function main(): Promise<void> {
 
   // order mirrors the original python main(): metadata first, then graph data
   writeFileSync(join(outputDir, 'cwe_metadata.json'), JSON.stringify(catalog.cweInfo))
+  writeFileSync(
+    join(outputDir, 'catalog_info.json'),
+    JSON.stringify({
+      cwe_version: catalog.rootDict['@Version'],
+      updated_at: catalog.rootDict['@Date'],
+      view_id: '1000',
+    }),
+  )
 
   const graphData = catalog.generateGraphData()
   writeFileSync(join(outputDir, 'graph_data.json'), JSON.stringify(graphData))
