@@ -12,6 +12,6 @@ The official CWE provides simple graphical visualizations [here](https://cwe.mit
 
 ## Development
 
-We use a Python script (located at `data_script/cwe_catalog.py`) to deal with CWE data. It downloads and parses CWE content distribution at https://cwe.mitre.org/data/downloads.html and then generates data files that can be used by the front-end easily.
+A Node.js script (located at `data_scripts/nodejs/`) deals with the CWE data. It downloads and parses the CWE content distribution at https://cwe.mitre.org/data/downloads.html and then generates data files that can be used by the front-end easily. `npm run build` refreshes the data in `public/` before building the front-end.
 
 The webpage is developed using Vue3 and Echarts, built by Vite.

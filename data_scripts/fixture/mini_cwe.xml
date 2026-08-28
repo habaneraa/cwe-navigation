@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Minimal synthetic CWE catalog covering every branch of the pipeline:
+    * CWE-1000 view with members            -> tree root + HasMember edges
+    * pillar / class / base / variant chain -> tree depth + symbolSize
+    * multiple Related_Weakness (list)      -> list normalization
+    * single Related_Weakness (object)      -> object normalization
+    * Related_Weakness without View_ID      -> excluded from tree AND graph
+    * Related_Weakness missing Ordinal      -> excluded from tree (not Primary)
+    * ChildOf with Ordinal="Secondary"      -> excluded from tree AND graph
+    * non-ChildOf nature with View_ID       -> dashed "other" edge in graph
+    * mixed-content description (xhtml:p)   -> xmltodict dict shape (CWE-1400 case)
+    * entities (&amp; &#233;)               -> escaping parity
+    * CWE-787                               -> real "top" id for the purple style branch
+    * category without Relationships        -> members defaults to []
+-->
+<Weakness_Catalog Name="CWE" Version="9.9" Date="2025-01-01">
+   <Weaknesses>
+      <Weakness ID="700" Name="Pillar P" Abstraction="Pillar" Status="Usen">
+         <Description>Pillar description with &amp; entity and &#233; accent.</Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="700" Nature="ChildOf" CWE_ID="1000" View_ID="1000" Ordinal="Primary"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed-with-Review</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="787" Name="Top One" Abstraction="Base" Status="Usen">
+         <Description>Base description.</Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="787" Nature="ChildOf" CWE_ID="700" View_ID="1000" Ordinal="Primary"/>
+            <Related_Weakness ID="787" Nature="ChildOf" CWE_ID="20" View_ID="1000" Ordinal="Secondary"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="801" Name="Cross Referenced Child" Abstraction="Variant" Status="Usen">
+         <Description><xhtml:p>First paragraph.</xhtml:p><xhtml:p>Second paragraph with <xhtml:b>bold</xhtml:b> inline.</xhtml:p></Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="801" Nature="ChildOf" CWE_ID="787" View_ID="1000" Ordinal="Primary"/>
+            <Related_Weakness ID="801" Nature="CanPrecede" CWE_ID="806" View_ID="1000"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="802" Name="Single Rw Child" Abstraction="Variant" Status="Usen">
+         <Description>Variant description.</Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="802" Nature="ChildOf" CWE_ID="787" View_ID="1000" Ordinal="Primary"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="803" Name="Orphan" Abstraction="Base" Status="Usen">
+         <Description>Orphan description.</Description>
+         <Mapping_Notes>
+            <Usage>Prohibited</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="804" Name="Class One" Abstraction="Class" Status="Usen">
+         <Description>Class description.</Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="804" Nature="ChildOf" CWE_ID="700" View_ID="1000" Ordinal="Primary"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed-with-Review</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="805" Name="Missing Ordinal" Abstraction="Base" Status="Usen">
+         <Description>Missing ordinal description.</Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="805" Nature="ChildOf" CWE_ID="700" View_ID="1000"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="807" Name="No View Id Child" Abstraction="Variant" Status="Usen">
+         <Description>No view id description.</Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="807" Nature="ChildOf" CWE_ID="804"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed</Usage>
+         </Mapping_Notes>
+      </Weakness>
+      <Weakness ID="806" Name="Precedes Target" Abstraction="Base" Status="Usen">
+         <Description>Precede target description.</Description>
+         <Related_Weaknesses>
+            <Related_Weakness ID="806" Nature="ChildOf" CWE_ID="700" View_ID="1000" Ordinal="Primary"/>
+         </Related_Weaknesses>
+         <Mapping_Notes>
+            <Usage>Allowed</Usage>
+         </Mapping_Notes>
+      </Weakness>
+   </Weaknesses>
+   <Categories>
+      <Category ID="1001" Name="Cat With Relations" Status="Usen">
+         <Summary>Category summary text.</Summary>
+         <Relationships>
+            <Has_Member ID="1001" CWE_ID="787"/>
+            <Has_Member ID="1001" CWE_ID="802"/>
+         </Relationships>
+      </Category>
+      <Category ID="1002" Name="Cat No Relations" Status="Usen">
+         <Summary>Another summary.</Summary>
+      </Category>
+   </Categories>
+   <Views>
+      <View ID="1000" Name="Research Concepts" Status="Usen">
+         <Objective>This view objective is plain text.</Objective>
+         <Members>
+            <Has_Member ID="1000" CWE_ID="700"/>
+         </Members>
+      </View>
+      <View ID="1400" Name="Mixed Content View" Status="Usen">
+         <Objective><xhtml:p>Mixed objective paragraph one.</xhtml:p><xhtml:p>Paragraph two.</xhtml:p></Objective>
+         <Members>
+            <Has_Member ID="1400" CWE_ID="803"/>
+         </Members>
+      </View>
+   </Views>
+</Weakness_Catalog>
