@@ -620,6 +620,37 @@ function abstractionBadgeClass(kind) {
   }[kind] || 'bg-[#e8f0f2] text-[#3f5f69]'
 }
 
+function statusBadgeClass(status) {
+  return {
+    Stable: 'bg-[#e7f5ed] text-[#287552]',
+    Draft: 'bg-[#fff2dc] text-[#9a641f]',
+    Incomplete: 'bg-[#e9f1fc] text-[#376ba9]',
+    Deprecated: 'bg-[#f3e8eb] text-[#8c485a]',
+  }[status] || 'bg-[#e8f0f2] text-[#3f5f69]'
+}
+
+function structureBadgeClass(structure) {
+  return {
+    Simple: 'bg-[#eef2f4] text-[#4d6670]',
+    Composite: 'bg-[#eeeafd] text-[#5c4aa8]',
+    Chain: 'bg-[#f9e9f0] text-[#93405b]',
+  }[structure] || 'bg-[#e8f0f2] text-[#3f5f69]'
+}
+
+function mappingText(value) {
+  if (!value) return ''
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.map(mappingText).filter(Boolean).join('\n')
+  if (typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([key]) => !key.startsWith('@'))
+      .map(([, child]) => mappingText(child))
+      .filter(Boolean)
+      .join('\n')
+  }
+  return String(value)
+}
+
 function mappingDescription(status) {
   if (status === 'Allowed') {
     return 'This weakness can be used for vulnerability mapping under the official guidance.'
@@ -938,9 +969,11 @@ onUnmounted(() => {
             <button class="plain-icon grid size-[34px] place-items-center rounded-lg border-0 bg-transparent text-muted hover:bg-soft hover:text-ink" aria-label="Close details" @click="clearSelection"><X :size="20" /></button>
           </div>
           <h2 class="mt-2.5 mb-3 text-[clamp(17px,1.3vw,21px)] leading-tight font-semibold tracking-[-.025em] max-[800px]:text-[17px]">{{ selectedNode?.name || 'Details unavailable' }}</h2>
-          <div class="detail-meta flex items-center gap-2 text-[10px] text-muted">
+          <div class="detail-meta flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
+            <span v-if="selectedNode?.status" class="inline-flex min-h-5 items-center rounded-full px-2 text-[9.5px] font-bold" :class="statusBadgeClass(selectedNode.status)" title="Catalog status">{{ selectedNode.status }}</span>
+            <span v-if="selectedNode?.structure" class="inline-flex min-h-5 items-center rounded-full px-2 text-[9.5px] font-bold" :class="structureBadgeClass(selectedNode.structure)" title="Weakness structure">{{ selectedNode.structure }}</span>
             <span v-if="selectedNode?.abstraction" class="abstraction-badge inline-flex min-h-5 items-center rounded-full px-2 text-[9.5px] font-bold" :class="abstractionBadgeClass(selectedNode.abstraction)">{{ selectedNode.abstraction }}</span>
-            <span>{{ relatedWeaknesses.length }} direct relationships</span>
+            <span class="ml-1">{{ relatedWeaknesses.length }} direct relationships</span>
           </div>
           <div class="detail-actions mt-4 flex gap-[7px] max-[480px]:grid max-[480px]:grid-cols-[1fr_auto]">
             <a class="inline-flex min-h-[37px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-accent bg-accent px-3 text-[10.5px] font-semibold text-white no-underline hover:bg-accent-dark" :href="`https://cwe.mitre.org/data/definitions/${selectedNodeId.slice(4)}.html`" target="_blank" rel="noreferrer">
@@ -960,8 +993,25 @@ onUnmounted(() => {
           <section v-if="selectedNode?.vulnerability_mapping" class="border-b border-line py-[21px]">
             <p class="section-label m-0 text-[9.5px] font-extrabold tracking-[.13em] text-muted uppercase">Vulnerability mapping</p>
             <div class="mapping-status mt-2.5 flex gap-2.5 rounded-[9px] border p-3" :class="['Allowed', 'Allowed-with-Review'].includes(selectedNode.vulnerability_mapping) ? 'border-[#c3ded3] bg-[#f0f8f5]' : 'border-[#ead5b6] bg-[#fff8ed]'">
-              <span class="grid size-6 shrink-0 place-items-center rounded-full text-white" :class="['Allowed', 'Allowed-with-Review'].includes(selectedNode.vulnerability_mapping) ? 'bg-[#398a69]' : 'bg-[#c5803b]'"><Check :size="15" /></span>
+              <span class="grid size-6 shrink-0 place-items-center rounded-full text-white" :class="['Allowed', 'Allowed-with-Review'].includes(selectedNode.vulnerability_mapping) ? 'bg-[#398a69]' : 'bg-[#c5803b]'">
+                <Check v-if="['Allowed', 'Allowed-with-Review'].includes(selectedNode.vulnerability_mapping)" :size="15" />
+                <TriangleAlert v-else :size="15" />
+              </span>
               <div><strong class="text-[11px] text-[#26654d]">{{ selectedNode.vulnerability_mapping }}</strong><p class="mt-1 mb-0 text-[10px] leading-[1.45] text-[#5d756c]">{{ mappingDescription(selectedNode.vulnerability_mapping) }}</p></div>
+            </div>
+            <div v-if="selectedNode?.mapping_rationale || selectedNode?.mapping_comments || selectedNode?.mapping_reasons?.length" class="mt-2.5 grid gap-2.5 rounded-[9px] border border-[#d9e3e5] bg-[#f7faf9] p-3">
+              <div v-if="selectedNode?.mapping_rationale">
+                <strong class="text-[10.5px] text-ink-soft">Official rationale</strong>
+                <p class="mt-1 mb-0 text-[10.5px] leading-[1.55] text-[#536a72]">{{ mappingText(selectedNode.mapping_rationale) }}</p>
+              </div>
+              <div v-if="selectedNode?.mapping_comments">
+                <strong class="text-[10.5px] text-ink-soft">Mapping guidance</strong>
+                <p class="mt-1 mb-0 whitespace-pre-line text-[10.5px] leading-[1.55] text-[#536a72]">{{ mappingText(selectedNode.mapping_comments) }}</p>
+              </div>
+              <div v-if="selectedNode?.mapping_reasons?.length" class="flex flex-wrap items-center gap-1.5">
+                <strong class="mr-0.5 text-[10.5px] text-ink-soft">Reason</strong>
+                <span v-for="reason in selectedNode.mapping_reasons" :key="reason" class="inline-flex min-h-5 items-center rounded-full bg-[#e5f1ee] px-2 text-[9.5px] font-semibold text-[#34766a]">{{ reason }}</span>
+              </div>
             </div>
           </section>
 

@@ -17,7 +17,12 @@ interface CweEntry extends Dict {
   name: string
   description: XmlValue
   vulnerability_mapping: string
+  status?: string
+  structure?: string
   abstraction?: string
+  mapping_rationale?: XmlValue
+  mapping_comments?: XmlValue
+  mapping_reasons?: string[]
   related_weaknesses?: RelatedWeakness[]
   members?: RelatedWeakness[]
 }
@@ -150,16 +155,31 @@ export class CweCatalog {
       const weaknessId = 'CWE-' + (weakness['@ID'] as string)
       const weaknessName = weakness['@Name'] as string
       const abstraction = weakness['@Abstraction'] as string
+      const status = weakness['@Status'] as string
+      const structure = weakness['@Structure'] as string
       const description = weakness['Description'] as XmlValue
-      const vulnerabilityMapping = (weakness['Mapping_Notes'] as XmlDict)['Usage'] as string
+      const mappingNotes = weakness['Mapping_Notes'] as XmlDict
+      const vulnerabilityMapping = mappingNotes['Usage'] as string
+      const mappingReasons = wrappedList(mappingNotes['Reasons'], 'Reason')
+        .map((reason) => reason['Type'])
+        .filter((reason): reason is string => Boolean(reason))
       const relatedWeaknesses = wrappedList(weakness['Related_Weaknesses'], 'Related_Weakness')
 
       cweMetadata[weaknessId] = {
         cwe_entry_type: 'weakness',
         name: weaknessName,
         abstraction,
+        status,
+        structure,
         description,
         vulnerability_mapping: vulnerabilityMapping,
+        ...(mappingNotes['Rationale'] !== undefined
+          ? { mapping_rationale: mappingNotes['Rationale'] as XmlValue }
+          : {}),
+        ...(mappingNotes['Comments'] !== undefined
+          ? { mapping_comments: mappingNotes['Comments'] as XmlValue }
+          : {}),
+        ...(mappingReasons.length ? { mapping_reasons: mappingReasons } : {}),
         related_weaknesses: relatedWeaknesses,
       }
     }
@@ -173,6 +193,7 @@ export class CweCatalog {
       cweMetadata[categoryId] = {
         cwe_entry_type: 'category',
         name: categoryName,
+        status: category['@Status'] as string,
         description: categorySummary,
         vulnerability_mapping: 'Prohibited',
         members,
@@ -188,6 +209,7 @@ export class CweCatalog {
       cweMetadata[viewId] = {
         cwe_entry_type: 'view',
         name: viewName,
+        status: view['@Status'] as string,
         description: viewDescription,
         vulnerability_mapping: 'Prohibited',
         members,

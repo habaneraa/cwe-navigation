@@ -25,7 +25,7 @@
             <Usage>Allowed-with-Review</Usage>
          </Mapping_Notes>
       </Weakness>
-      <Weakness ID="787" Name="Top One" Abstraction="Base" Status="Usen">
+      <Weakness ID="787" Name="Top One" Abstraction="Base" Structure="Simple" Status="Usen">
          <Description>Base description.</Description>
          <Related_Weaknesses>
             <Related_Weakness ID="787" Nature="ChildOf" CWE_ID="700" View_ID="1000" Ordinal="Primary"/>
@@ -33,6 +33,11 @@
          </Related_Weaknesses>
          <Mapping_Notes>
             <Usage>Allowed</Usage>
+            <Rationale>Use this entry when the buffer write exceeds its intended bounds.</Rationale>
+            <Comments>Prefer a more specific child weakness when the root cause is known.</Comments>
+            <Reasons>
+               <Reason Type="Acceptable-Use"/>
+            </Reasons>
          </Mapping_Notes>
       </Weakness>
       <Weakness ID="801" Name="Cross Referenced Child" Abstraction="Variant" Status="Usen">

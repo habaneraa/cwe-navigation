@@ -72,6 +72,20 @@ describe('fixture golden baseline', () => {
     )
   })
 
+  it('exports detail badges and mapping guidance metadata', () => {
+    const cwe787 = catalog.cweInfo['CWE-787']
+    expect(cwe787.status).toBe('Usen')
+    expect(cwe787.structure).toBe('Simple')
+    expect(cwe787.mapping_rationale).toBe(
+      'Use this entry when the buffer write exceeds its intended bounds.',
+    )
+    expect(cwe787.mapping_comments).toBe(
+      'Prefer a more specific child weakness when the root cause is known.',
+    )
+    expect(cwe787.mapping_reasons).toEqual(['Acceptable-Use'])
+    expect(catalog.cweInfo['CWE-1001'].status).toBe('Usen')
+  })
+
   it('filters relationships per the view id / ordinal / nature rules', () => {
     // CWE-807: ChildOf without View_ID -> kept in metadata, excluded from tree+graph
     expect(catalog.cweInfo['CWE-807'].related_weaknesses).toEqual([
