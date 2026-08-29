@@ -180,19 +180,19 @@ function findViewForNode(nodeId) {
   const tree = viewEntries.value.find(
     ([name, graph]) => name.startsWith('Tree of') && graph.nodes.some((node) => node.name === nodeId),
   )
-  return tree?.[0] || viewEntries.value.find(([name]) => name.startsWith('All Weaknesses'))?.[0] || ''
+  return tree?.[0] || 'All Weaknesses'
 }
 
 function shortViewName(name) {
   const match = name.match(/^Tree of (CWE-\d+): (.+)$/)
   if (match) return `${match[1]} · ${match[2]}`
-  return name.replace(' (could be very laggy)', '')
+  return name
 }
 
 function viewId(name) {
   const match = name.match(/^Tree of (CWE-\d+):/)
   if (match) return match[1]
-  if (name.startsWith('All Weaknesses')) return 'CWE-1000'
+  if (name === 'All Weaknesses') return 'CWE-1000'
   return name.match(/CWE-\d+/)?.[0] || 'CWE-1000'
 }
 
@@ -446,7 +446,7 @@ function switchView(name, nodeToKeep = '') {
 
 function requestViewSwitch(name) {
   if (name === selectedView.value) return
-  if (name.startsWith('All Weaknesses')) {
+  if (name === 'All Weaknesses') {
     pendingView.value = name
     modal.value = 'all'
     return

@@ -1,18 +1,7 @@
-/**
- * CWE catalog data model, originally ported 1:1 from the python
- * implementation (cwe_catalog.py, retired after the migration was
- * verified). Iteration order and JSON key order are significant: the
- * exported JSON has a byte-stable format inherited from that port.
- * Comments still mark the original python constructs where they explain
- * quirky behavior.
- */
-
 import { DiGraph, type EdgeTuple } from './digraph.js'
-import { xmltodictParse, type XmlDict, type XmlValue } from './xmltodict.js'
+import { parseXml, type XmlDict, type XmlValue } from './xml.js'
 
-type Dict = Record<string, unknown>
-
-interface CweEntry extends Dict {
+interface CweEntry {
   cwe_entry_type: 'weakness' | 'category' | 'view'
   name: string
   description: XmlValue
@@ -31,31 +20,20 @@ interface RelatedWeakness {
   [key: string]: string // ID / Nature / CWE_ID / View_ID / Ordinal (attribute order preserved)
 }
 
-interface RelatedWeaknessRaw {
-  [key: string]: string
-}
-
 function asList<T>(v: T | T[] | undefined | null): T[] {
-  // python idiom: `x if isinstance(x, list) else [x,]`
   if (v === undefined || v === null) return []
   return Array.isArray(v) ? v : [v]
 }
 
-/**
- * Extract the inner element list from a wrapper element, mirroring python:
- *   rw = weakness['Related_Weaknesses']['Related_Weakness']
- *   rw = rw if isinstance(rw, list) else [rw,]
- * (missing wrapper -> [], like python's `weakness.get(...)` + falsy check)
- */
 function wrappedList(container: unknown, innerKey: string): RelatedWeakness[] {
   if (container === undefined || container === null) return []
   const inner = (container as XmlDict)[innerKey]
   if (inner === undefined || inner === null) return []
-  const list = asList(inner as RelatedWeaknessRaw | RelatedWeaknessRaw[])
+  const list = asList(inner as RelatedWeakness | RelatedWeakness[])
   return list.map((r) => {
     const stripped: RelatedWeakness = {}
     for (const [k, v] of Object.entries(r)) {
-      stripped[k.slice(1)] = String(v) // python: {k[1:]: v for k, v in r.items()}
+      stripped[k.slice(1)] = String(v)
     }
     return stripped
   })
@@ -70,9 +48,8 @@ function wrappedDictList(container: unknown, innerKey: string): XmlDict[] {
 }
 
 export class CweCatalog {
-  static readonly viewIdUsedForNavigation = '1000'
+  static readonly navigationViewId = '1000'
 
-  // python: self._root_dict / self._cwe_info (private by convention only)
   readonly rootDict: XmlDict
   readonly cweInfo: Record<string, CweEntry>
 
@@ -83,38 +60,25 @@ export class CweCatalog {
   readonly graph: DiGraph
 
   constructor(cweXmlText: string) {
-    const parsed = xmltodictParse(cweXmlText)
+    const parsed = parseXml(cweXmlText)
     this.rootDict = parsed['Weakness_Catalog'] as XmlDict
-    this.cweInfo = this.getSimplifiedCweEntryInfo()
+    this.cweInfo = this.buildMetadata()
 
-    this.tree = this.buildTreeOf(CweCatalog.viewIdUsedForNavigation)
+    this.tree = this.buildTree(CweCatalog.navigationViewId)
     if (!this.tree.isArborescence()) {
-      // python: assert nx.is_arborescence(digraph), '? unexpected tree view ?!'
-      throw new Error('? unexpected tree view ?!')
+      throw new Error('CWE Research Concepts view is not a tree')
     }
     this.parentMap = new Map()
     for (const [u, v] of this.tree.edges()) {
       this.parentMap.set(v, u)
     }
-    this.graph = this.buildGraph(CweCatalog.viewIdUsedForNavigation)
+    this.graph = this.buildGraph(CweCatalog.navigationViewId)
   }
 
-  get(index: string | number): CweEntry {
-    let cweId: string
-    if (typeof index === 'string') {
-      if (index.startsWith('CWE-')) {
-        cweId = index
-      } else if (/^\d+$/.test(index)) {
-        cweId = `CWE-${index}`
-      } else {
-        cweId = ''
-      }
-    } else {
-      cweId = 'CWE-' + index
-    }
+  get(cweId: string): CweEntry {
     const entry = this.cweInfo[cweId]
     if (entry === undefined) {
-      throw new Error(`CWE ID not found: ${index}`)
+      throw new Error(`CWE ID not found: ${cweId}`)
     }
     return entry
   }
@@ -135,20 +99,18 @@ export class CweCatalog {
     return Object.keys(this.cweInfo)
   }
 
-  showCweBasicInfo(): void {
+  printSummary(): void {
     const catalog = this.rootDict as Record<string, unknown>
     const cweVersion = catalog['@Version'] as string
     const cweDate = catalog['@Date'] as string
-    // (typo "Commmon" kept intentionally, inherited from the original pipeline output)
-    console.log(`Commmon Weakness Enumeration Catalog (${cweVersion} ${cweDate})`)
+    console.log(`Common Weakness Enumeration Catalog (${cweVersion} ${cweDate})`)
     console.log(`Number of weaknesses: ${this.weaknesses.length}`)
     console.log(`Number of categories: ${this.categories.length}`)
     console.log(`Number of views: ${this.views.length}`)
     console.log(`Total entries: ${this.allCweIds.length}`)
   }
 
-  /** python: get_simplified_cwe_entry_info */
-  protected getSimplifiedCweEntryInfo(): Record<string, CweEntry> {
+  protected buildMetadata(): Record<string, CweEntry> {
     const cweMetadata: Record<string, CweEntry> = {}
 
     for (const weakness of this.weaknesses) {
@@ -180,7 +142,7 @@ export class CweCatalog {
           ? { mapping_comments: mappingNotes['Comments'] as XmlValue }
           : {}),
         ...(mappingReasons.length ? { mapping_reasons: mappingReasons } : {}),
-        related_weaknesses: relatedWeaknesses,
+        related_weaknesses: relatedWeaknesses
       }
     }
 
@@ -196,7 +158,7 @@ export class CweCatalog {
         status: category['@Status'] as string,
         description: categorySummary,
         vulnerability_mapping: 'Prohibited',
-        members,
+        members
       }
     }
 
@@ -212,15 +174,14 @@ export class CweCatalog {
         status: view['@Status'] as string,
         description: viewDescription,
         vulnerability_mapping: 'Prohibited',
-        members,
+        members
       }
     }
 
     return cweMetadata
   }
 
-  /** python: _build_tree_of */
-  protected buildTreeOf(viewId: string = '1000'): DiGraph {
+  protected buildTree(viewId: string): DiGraph {
     const digraph = new DiGraph()
     for (const cweId of this.allCweIds) {
       const rws = this.get(cweId).related_weaknesses
@@ -236,14 +197,13 @@ export class CweCatalog {
         }
       }
     }
-    for (const member of this.get(viewId).members ?? []) {
+    for (const member of this.get(`CWE-${viewId}`).members ?? []) {
       digraph.addEdge('CWE-' + viewId, 'CWE-' + member['CWE_ID'])
     }
     return digraph
   }
 
-  /** python: _build_graph — heterogeneous graph of CWE entries */
-  protected buildGraph(viewId: string = '1000'): DiGraph {
+  protected buildGraph(viewId: string): DiGraph {
     const digraph = new DiGraph()
 
     // we want parent ---> child, so that: (parent) ---ParentOf--> (child)
@@ -251,12 +211,12 @@ export class CweCatalog {
       if (rw['Nature'] === 'ChildOf') {
         digraph.addEdge('CWE-' + rw['CWE_ID'], w, {
           nature: 'ParentOf',
-          ordinal: rw['Ordinal'] ?? '',
+          ordinal: rw['Ordinal'] ?? ''
         })
       } else {
         digraph.addEdge(w, 'CWE-' + rw['CWE_ID'], {
           nature: rw['Nature'],
-          ordinal: rw['Ordinal'] ?? '',
+          ordinal: rw['Ordinal'] ?? ''
         })
       }
     }
@@ -275,22 +235,19 @@ export class CweCatalog {
       }
     }
 
-    for (const member of this.get(viewId).members ?? []) {
+    for (const member of this.get(`CWE-${viewId}`).members ?? []) {
       digraph.addEdge('CWE-' + viewId, 'CWE-' + member['CWE_ID'], { nature: 'HasMember' })
     }
     return digraph
   }
 
-  /** python: find_path_on_tree — returns null when descendant is not under ancestor */
   findPathOnTree(ancestor: string, descendant: string): string[] | null {
     const path = [descendant]
     let currentNode = descendant
     while (currentNode !== ancestor) {
-      if (currentNode === 'CWE-1000') {
-        // reaches root node, fail
-        return null
-      }
-      currentNode = this.parentMap.get(currentNode) as string // python: KeyError possible
+      const parent = this.parentMap.get(currentNode)
+      if (!parent) return null
+      currentNode = parent
       path.push(currentNode)
     }
     path.reverse()
@@ -301,8 +258,7 @@ export class CweCatalog {
     const pathFromRoot = this.findPathOnTree('CWE-1000', node)
     if (pathFromRoot && pathFromRoot.length > 1) {
       if (this.get(pathFromRoot[1]).abstraction !== 'Pillar') {
-        // python: assert self[path[1]]['abstraction'] == 'Pillar'
-        throw new Error(`AssertionError: ${pathFromRoot[1]} is not a Pillar`)
+        throw new Error(`${pathFromRoot[1]} is not a Pillar`)
       }
       return pathFromRoot[1]
     }
@@ -310,25 +266,61 @@ export class CweCatalog {
   }
 }
 
-export class GraphChartData extends CweCatalog {
+export class CweGraphData extends CweCatalog {
   static readonly abstractions = ['Compound', 'Pillar', 'Class', 'Base', 'Variant']
 
-  // hard-coded for now (kept in sync with cwe_catalog.py)
   static readonly topCweIds = new Set([
-    'CWE-125', 'CWE-119', 'CWE-787', 'CWE-476', 'CWE-Other', 'CWE-416', 'CWE-20', 'CWE-190',
-    'CWE-200', 'CWE-399', 'CWE-120', 'CWE-401', 'CWE-264', 'CWE-362', 'CWE-189', 'CWE-772',
-    'CWE-835', 'CWE-617', 'CWE-369', 'CWE-415', 'CWE-400', 'CWE-122', 'CWE-770', 'CWE-22',
-    'CWE-908', 'CWE-284', 'CWE-674', 'CWE-254', 'CWE-295', 'CWE-59', 'CWE-193', 'CWE-287',
-    'CWE-269', 'CWE-834', 'CWE-667', 'CWE-310', 'CWE-17', 'CWE-754', 'CWE-843', 'CWE-755',
-    'CWE-909', 'CWE-404', 'CWE-665', 'CWE-191', 'CWE-79', 'CWE-252', 'CWE-78', 'CWE-681',
-    'CWE-89', 'CWE-704',
+    'CWE-125',
+    'CWE-119',
+    'CWE-787',
+    'CWE-476',
+    'CWE-416',
+    'CWE-20',
+    'CWE-190',
+    'CWE-200',
+    'CWE-399',
+    'CWE-120',
+    'CWE-401',
+    'CWE-264',
+    'CWE-362',
+    'CWE-189',
+    'CWE-772',
+    'CWE-835',
+    'CWE-617',
+    'CWE-369',
+    'CWE-415',
+    'CWE-400',
+    'CWE-122',
+    'CWE-770',
+    'CWE-22',
+    'CWE-908',
+    'CWE-284',
+    'CWE-674',
+    'CWE-254',
+    'CWE-295',
+    'CWE-59',
+    'CWE-193',
+    'CWE-287',
+    'CWE-269',
+    'CWE-834',
+    'CWE-667',
+    'CWE-310',
+    'CWE-17',
+    'CWE-754',
+    'CWE-843',
+    'CWE-755',
+    'CWE-909',
+    'CWE-404',
+    'CWE-665',
+    'CWE-191',
+    'CWE-79',
+    'CWE-252',
+    'CWE-78',
+    'CWE-681',
+    'CWE-89',
+    'CWE-704'
   ])
 
-  private get topCweIds(): Set<string> {
-    return GraphChartData.topCweIds
-  }
-
-  /** python: export_data */
   exportData(nodes: string[], edges: EdgeTuple[], rootNode: string): GraphExport {
     const exportNodes: GraphNode[] = []
     const exportLinks: GraphLink[] = []
@@ -337,26 +329,21 @@ export class GraphChartData extends CweCatalog {
       const path = this.findPathOnTree(rootNode, cweNode)
       const depth = path ? path.length - 1 : 1
       const category = this.get(cweNode).abstraction ?? 'Pillar'
-      const style: Record<string, number | string> = {
-        borderWidth: 0,
-      }
-      if (this.topCweIds.has(cweNode)) {
+      const style: Record<string, number | string> = { borderWidth: 0, opacity: 1 }
+      if (CweGraphData.topCweIds.has(cweNode)) {
         style['borderColor'] = '#9B30FF'
         style['borderWidth'] = 2
-        style['opacity'] = 1
-      } else {
-        style['opacity'] = 1
       }
       exportNodes.push({
         name: cweNode,
         value: this.get(cweNode).vulnerability_mapping,
         symbolSize: cweNode !== rootNode ? 15 - depth * 2 : 30,
         category,
-        itemStyle: style,
+        itemStyle: style
       })
     }
     for (const [src, tgt, data] of edges) {
-      const attr = data['nature'] ?? 'ParentOf' // python: edges.data('nature', default='ParentOf')
+      const attr = data['nature'] ?? 'ParentOf'
       if (validNodeSet.has(src) && validNodeSet.has(tgt)) {
         const isStructural = attr === 'ParentOf' || attr === 'HasMember'
         exportLinks.push({
@@ -365,10 +352,10 @@ export class GraphChartData extends CweCatalog {
           value: attr,
           ignoreForceLayout: !isStructural,
           lineStyle: {
-            type: isStructural ? 'solid' : 'dashed',
+            type: isStructural ? 'solid' : 'dashed'
           },
           symbol: ['none', 'arrow'],
-          symbolSize: 5,
+          symbolSize: 5
         })
       }
     }
@@ -377,12 +364,11 @@ export class GraphChartData extends CweCatalog {
     return {
       nodes: exportNodes,
       links: exportLinks,
-      categories: GraphChartData.abstractions.map((c) => ({ name: c })),
-      legends: [...GraphChartData.abstractions],
+      categories: CweGraphData.abstractions.map((c) => ({ name: c })),
+      legends: [...CweGraphData.abstractions]
     }
   }
 
-  /** python: generate_graph_data */
   generateGraphData(): Record<string, GraphExport> {
     const allGraphs: Record<string, GraphExport> = {}
 
@@ -399,10 +385,8 @@ export class GraphChartData extends CweCatalog {
       allGraphs[graphName] = exportedGraph
     }
 
-    // graph
-    const targetCwes = this.topCweIds
     const visibleNodesOnGraph = new Set<string>()
-    for (const target of targetCwes) {
+    for (const target of CweGraphData.topCweIds) {
       if (!this.graph.hasNode(target)) {
         continue
       }
@@ -411,15 +395,11 @@ export class GraphChartData extends CweCatalog {
         for (const p of path) visibleNodesOnGraph.add(p)
       }
     }
-    const popularGraph = this.exportData(
-      [...visibleNodesOnGraph],
-      this.graph.edges(),
-      'CWE-1000',
-    )
+    const popularGraph = this.exportData([...visibleNodesOnGraph], this.graph.edges(), 'CWE-1000')
     allGraphs['Popular Weaknesses'] = popularGraph
 
     const allGraph = this.exportData(this.graph.nodes(), this.graph.edges(), 'CWE-1000')
-    allGraphs['All Weaknesses (could be very laggy)'] = allGraph
+    allGraphs['All Weaknesses'] = allGraph
 
     return allGraphs
   }
@@ -449,5 +429,3 @@ export interface GraphExport {
   categories: { name: string }[]
   legends: string[]
 }
-
-export type { Dict }

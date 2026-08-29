@@ -9,8 +9,8 @@
     * Related_Weakness missing Ordinal      -> excluded from tree (not Primary)
     * ChildOf with Ordinal="Secondary"      -> excluded from tree AND graph
     * non-ChildOf nature with View_ID       -> dashed "other" edge in graph
-    * mixed-content description (xhtml:p)   -> xmltodict dict shape (CWE-1400 case)
-    * entities (&amp; &#233;)               -> escaping parity
+    * mixed-content description (xhtml:p)   -> nested description data
+    * entities (&amp; &#233;)               -> entity decoding
     * CWE-787                               -> real "top" id for the purple style branch
     * category without Relationships        -> members defaults to []
 -->

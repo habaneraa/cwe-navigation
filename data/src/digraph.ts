@@ -46,10 +46,6 @@ export class DiGraph {
     }
   }
 
-  hasEdge(u: string, v: string): boolean {
-    return this._edgeData.has(edgeKey(u, v))
-  }
-
   /** Iteration order matches `for n in G` on a networkx DiGraph. */
   nodes(): string[] {
     return this._nodeOrder
