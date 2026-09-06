@@ -74,7 +74,18 @@ The cache directory is intentionally ignored. Fixture baselines under `data/fixt
 └── vite.config.js         # Vite configuration and Pages base path
 ```
 
-Pushes and pull requests run linting, type checking, tests, and a production build. Successful pushes to `main` publish `dist/` to the `gh-pages` branch.
+Pull requests and pushes to `main` run linting, type checking, tests, and a production build. Successful pushes to `main` deploy `dist/` through GitHub Pages. Pushing a semantic version tag such as `v0.1.0` verifies the tag and creates a GitHub Release with generated notes.
+
+## Release
+
+The release version is kept in `package.json` and `package-lock.json`. After merging the release commit, create and push the matching tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+In the repository settings, set GitHub Pages' source to **GitHub Actions**.
 
 ## Data source and license
 
