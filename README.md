@@ -1,9 +1,8 @@
-<div align="center">
-  <img src="public/icon.svg" width="112" alt="CWE Navigation logo">
-  <h1>CWE Navigation</h1>
-  <p>Explore the connections between software weaknesses.</p>
-  <p><a href="https://habaneraa.github.io/cwe-navigation/"><strong>Open CWE Navigation</strong></a></p>
-</div>
+<p align="center">
+  <a href="https://habaneraa.github.io/cwe-navigation/">
+    <img src="public/cwe-navigation-banner.png" alt="CWE Navigation — explore the connections between software weaknesses">
+  </a>
+</p>
 
 ## Introduction
 
